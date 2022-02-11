@@ -34,7 +34,7 @@ def Stat_removal(pointcloud, neighbors = 20, ratio = 0.5):
 def get_colorpoints(pcd_to_analyze):
   # Get avenes colors ==========================================
   OB_colors = _get_pcd("../samples/sample_1.pcd", colors=True)["colors"]        # Finction _get_pcd() returns dict
-  NOTOB_colors4 = _get_pcd("../samples/Not_object4.pcd", colors=True)["colors"]
+  NOTOB_colors4 = _get_pcd("../samples/Not_object_main.pcd", colors=True)["colors"]
 
   # Test pointcloud ============================================
   pcd_points = _get_pcd(pcd_to_analyze, points=True, colors=True)
