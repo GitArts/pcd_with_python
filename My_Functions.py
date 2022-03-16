@@ -7,6 +7,23 @@ def help_line(string):
   print ("\n")
   print (string.center(width, '='))
 
+def show_pcd(pcd_or_points, vector=False, color=False, save=False, name = 'show_pcd_save.pcd'):
+  if vector:
+    points = pcd_or_points
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+  else:
+    pcd = pcd_or_points
+  if save:
+    o3d.io.write_point_cloud(name, pcd)
+  else:
+    pass
+  if color:
+    pcd.paint_uniform_color([160/255, 82/255, 45/255])
+  else:
+    pass
+  o3d.visualization.draw_geometries([pcd])
+
 def _get_pcd(sample_name, pcd=False, points=False, colors=False):
   pcd_dict = {}
   pointcloud = o3d.io.read_point_cloud(sample_name)
@@ -37,32 +54,33 @@ def clustering(pointcloud):
 def display_inlier_outlier(cloud, ind):
   inlier_cloud = cloud.select_by_index(ind)
   outlier_cloud = cloud.select_by_index(ind, invert=True)
-
-  print ("\n=== Show outlier (red) and inlier (gray): ===")
   outlier_cloud.paint_uniform_color([1, 0, 0])
   inlier_cloud.paint_uniform_color([0.8, 0.8, 0.8])
-  o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
-
+  return outlier_cloud
     # select_by_index() - takes a binary mask to output only the selected points.
 
 # Statisticak outlier removal function
 def Stat_removal(pointcloud, neighbors = 20, ratio = 0.5):
-  #help_line(" Statistical removal ")
   cl, ind = pointcloud.remove_statistical_outlier(nb_neighbors=neighbors, std_ratio=ratio)
-  #print ("Points before filtering: ", pointcloud)
-  #print ("Points after filtering: ", cl, "\n")
   return cl, ind
 
 # Find x, y, z coordinates for corner points. ============================
-def Find_corner(pointcloud):
-  pcd1_coor = np.asarray(pointcloud.points)
-  x_max = np.amax(pcd1_coor, where=[True, False, False], initial=-1, axis=0)
-  x_max = x_max[0]
-  y_max = np.amax(pcd1_coor, where=[False, True, False], initial=-1, axis=0)
-  y_max = y_max[1]
-  z_min = np.amin(pcd1_coor, where=[False, False, True], initial=610, axis=0)
-  z_min = z_min[2]
-  return x_max, y_max, z_min
+def Find_corner(points):
+  Dict = {}
+  y_max = np.amax(points, where=[True, False, False], initial=-np.inf)
+  y_max = points[np.where((points == y_max).any(axis=1))][0]
+
+  y_min = np.amin(points, where=[True, False, False], initial=np.inf)
+  y_min = points[np.where((points == y_min).any(axis=1))][0]
+
+  x_max = np.amax(points, where=[False, True, False], initial=-np.inf)
+  x_max = points[np.where((points == x_max).any(axis=1))][0]
+
+  x_min = np.amin(points, where=[False, True, False], initial=np.inf, axis=0)
+  x_min = points[np.where((points == x_min).any(axis=1))][0]
+
+  Dict["y_max"], Dict["y_min"], Dict["x_max"], Dict["x_min"] = y_max, y_min, x_max, x_min
+  return Dict
 
 # move pointcloud based on original points
 def move_pcd(pcd_move, x_max, y_max, z_min):
