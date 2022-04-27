@@ -1,39 +1,9 @@
 import open3d as o3d
 import numpy as np
-import sys; sys.path.append("../../../../kopigs")
+import sys; sys.path.append("../../../kopigs")
 import heapq
-from My_Functions import _get_pcd, show_pcd, Find_corner
-from My_Functions2 import Align_base
-
-def get_points(points, Z_VALUE):
-  max_z = np.amax(points, where=[False, False, True], initial = -np.inf)
-  max_z_point = points[np.where((points == max_z).any(axis=1))][0]
-  # |== +Y ==|
-  for r in range(1, 100):
-    pluss_y = max_z_point[0]+r
-    P1 = points[(points[:, 0] < pluss_y)&
-			(points[:, 0] > max_z_point[0]-1)&
-			(points[:, 1] < max_z_point[1]+1)&
-			(points[:, 1] > max_z_point[1]-1)]
-    if (P1[-2, 2] < P1[-1, 2]+0.05)and(P1[-1, 2] > Z_VALUE-2):  # Z_VALUE = base_Z
-      show_pcd(P1, vector=True)
-      print ("P1[-1, 2] =", P1[-1, 2], "\nZ_VALUE-0.05 =", Z_VALUE-2)
-      break
-  # |== -Y ==|
-  for r in range(1, 100):
-    minus_y = max_z_point[0]-r
-    P2 = points[(points[:, 0] < max_z_point[0]+1)&
-			(points[:, 0] > minus_y)&
-			(points[:, 1] < max_z_point[1]+1)&
-			(points[:, 1] > max_z_point[1]-1)]
-    if (P2[-2, 2] < P2[-1, 2]+0.05)and(P2[-1, 2] < Z_VALUE-2):  # Z_VALUE = base_Z
-      show_pcd(P2, vector=True)
-      print ("P2[-1, 2] =", P2[-1, 2], "\nZ_VALUE-0.05 =", Z_VALUE-2)
-      break
-  # |== +X ==|
-  # |== -X ==|
-  New_points = np.vstack((P1, P2))
-  return New_points
+from My_Functions import _get_pcd, show_pcd, Find_corner, get_BoBox, From_BB_get_pcd, scale_pcd
+from My_Functions2 import Align_base, get_points
 
 def Is_object(points):
 
@@ -53,45 +23,52 @@ def Is_object(points):
   else:
     return False
 
-def get_BoBox(obj_points):
-  pcd = o3d.geometry.PointCloud()
-  pcd.points = o3d.utility.Vector3dVector(obj_points)
-  BB = pcd.get_axis_aligned_bounding_box()
-  BB.color = (1, 0, 0)
-  return BB
-
 def main():
+  # 		|=== load pcd ===|
   pcd = _get_pcd("../par_10.pcd", pcd=True)["pcd"]
-  # Get pcd, pcd points and pcd colors ===============
-
-  # pcd rotation =====================================
-  pcd = Align_base(pcd)
+  # 		|=== pcd rotation ===|
+  pcd, Base_z = Align_base(pcd)
   points = np.asarray(pcd.points)
-  # Def bounding box variables =======================
-  y_max = Find_corner(np.asarray(pcd.points), 100000)["y_max"]
-  points = points[points[:, 2] < y_max[2]-5]
-  breakpoint()
-  show_pcd(points, vector=True)
-  quit()
-  BB = {}
-  BB_nr = 0
-  count = 0
+  # 		|=== scale pcd ===|
+  pcd_center = pcd.get_center()
+  pcd, scale_num = scale_pcd(pcd, -1, pcd_center) # (-1) <-- This value doesn't matter
+  # 		|=== remove the base ===|
+  points = points[points[:, 2] > Base_z+1]
   """
   1. Atrast max_z pcd;							<-- 1. YEP
   2. "Imaginārā kvadrāta" princips; 					<-- 2. YEP
   3. Ja visos četros virzienos nākamajā solī 'z' vērtība ir mazāka
 		turpini atlasīt punktus;				<-- 3. YEP
   4. Rotēt pcd, lai visiem stūriem būtu max_z vienāds.			<-- 4. YEP kind of (y_max[2]=y_min[2]=x_max[2])
-  5. no augšas analizēt uz leju līdz brītim, kad max_z saglabājas
-  6. Modificēt get_points(), lai meklē 4 stūrus -- 4 reizes lēnāk.
-  6. Ja nē izmantot funkciju Is_object;
-  7. Modificēt funkciju Is_objekt -->
+  5. noņemt pamatu							<-- 5. YEP
+  6. Modificēt get_points(), lai meklē 4 stūrus -- 4 reizes lēnāk.	<-- 6. YEP
+  7. dabūt objektu no BB
+  8. Ja nē, izmantot funkciju Is_object;
+  9. Modificēt funkciju Is_objekt -->
 		analīze pēc augstuma
+  10. Noņemt objektu no pointcloud-a
   """
-  # Get object points ===============================
-  Z_VALUE = Find_corner(np.asarray(pcd.points), 100000)["y_max"][2]
-  OB = get_points(points, Z_VALUE)
-  quit()
+  # 	   |=== Def bounding box variables ===|
+  BB = {}
+  BB_nr = 0
+  count = 0
+  # 	       |=== Get object points ===|
+  while True:
+    OB = get_points(points, Base_z)
+    OB_BB = get_BoBox(OB)
+    OB = From_BB_get_pcd(OB_BB, pcd) # <-- object bounding box is aplayed to big pcd
+    #		  |=== Object test ===|
+    Is_an_object = Is_object(np.asarray(OB.points))
+    #|=== If it's an object then get bounding box ===|
+    if Is_an_object:
+      BB_nr += 1
+      BB[f"BB{BB_nr}"] = get_BoBox(OB)
+      # |=== anti-scale for bounding boxes ===|
+      BB[f"BB{BB_nr}"], _ = scale_pcd(BB[f"BB{BB_nr}"], scale_num, pcd_center)
+    show_pcd(BB["BB1"])
+    breakpoint()
+    show_pcd([pcd, BB["BB1"]])
+    quit()
   # Is it an object? ================================
   Is = Is_object(OB)
   # If it is an object, get bounding box ============
